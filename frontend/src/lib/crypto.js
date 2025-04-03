@@ -45,6 +45,7 @@ export async function importPrivateKey(base64Key) {
 }
 
 export async function encryptText(publicKey, text) {
+  if (!publicKey || !text) return null;
   const encoded = new TextEncoder().encode(text);
   const encrypted = await crypto.subtle.encrypt(
     { name: "RSA-OAEP" },
@@ -55,11 +56,47 @@ export async function encryptText(publicKey, text) {
 }
 
 export async function decryptText(privateKey, base64Text) {
-  const encryptedBytes = Uint8Array.from(atob(base64Text), c => c.charCodeAt(0));
-  const decrypted = await crypto.subtle.decrypt(
-    { name: "RSA-OAEP" },
-    privateKey,
-    encryptedBytes
-  );
-  return new TextDecoder().decode(decrypted);
+  if (!privateKey || !base64Text) return null;
+  try {
+    const encryptedBytes = Uint8Array.from(atob(base64Text), c => c.charCodeAt(0));
+    const decrypted = await crypto.subtle.decrypt(
+      { name: "RSA-OAEP" },
+      privateKey,
+      encryptedBytes
+    );
+    return new TextDecoder().decode(decrypted);
+  } catch (error) {
+    console.error("Decryption failed:", error);
+    return "[Decryption error]";
+  }
+}
+
+// Load and cache key pair from localStorage
+export async function getOrCreateKeyPair() {
+  const cachedPublic = localStorage.getItem("publicKey");
+  const cachedPrivate = localStorage.getItem("privateKey");
+
+  if (cachedPublic && cachedPrivate) {
+    const privateKey = await importPrivateKey(cachedPrivate);
+    const publicKey = await importPublicKey(cachedPublic);
+    return { publicKey, privateKey };
+  } else {
+    const keyPair = await generateKeyPair();
+    const pub = await exportPublicKey(keyPair.publicKey);
+    const priv = await exportPrivateKey(keyPair.privateKey);
+
+    localStorage.setItem("publicKey", pub);
+    localStorage.setItem("privateKey", priv);
+
+    return keyPair;
+  }
+}
+
+// Returns public key only (for uploading to server)
+export function getStoredPublicKey() {
+  return localStorage.getItem("publicKey") || null;
+}
+
+export function getStoredPrivateKey() {
+  return localStorage.getItem("privateKey") || null;
 }
