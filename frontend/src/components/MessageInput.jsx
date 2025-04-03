@@ -1,47 +1,13 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
 import { Image, Send, X } from "lucide-react";
 import toast from "react-hot-toast";
-import {
-  encryptText,
-  importPublicKey,
-  generateKeyPair,
-  exportPublicKey,
-  exportPrivateKey,
-} from "../lib/crypto";
 
-const MessageInput = ({ selectedUser }) => {
+const MessageInput = () => {
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
   const fileInputRef = useRef(null);
   const { sendMessage } = useChatStore();
-
-  useEffect(() => {
-    const checkAndGenerateKeys = async () => {
-      const existingPublic = localStorage.getItem("publicKey");
-      const existingPrivate = localStorage.getItem("privateKey");
-      if (!existingPublic || !existingPrivate) {
-        const keyPair = await generateKeyPair();
-        const pub = await exportPublicKey(keyPair.publicKey);
-        const priv = await exportPrivateKey(keyPair.privateKey);
-
-        localStorage.setItem("publicKey", pub);
-        localStorage.setItem("privateKey", priv);
-
-        try {
-          await fetch("/api/users/public-key", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ publicKey: pub }),
-          });
-        } catch (error) {
-          console.error("Error uploading public key:", error);
-        }
-      }
-    };
-
-    checkAndGenerateKeys();
-  }, []);
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -67,27 +33,17 @@ const MessageInput = ({ selectedUser }) => {
     if (!text.trim() && !imagePreview) return;
 
     try {
-      let encryptedText = null;
-      if (text.trim()) {
-        const res = await fetch(`/api/users/${selectedUser._id}/public-key`);
-        if (!res.ok) throw new Error("Failed to fetch recipient's public key");
-
-        const { publicKey: receiverPublicKeyBase64 } = await res.json();
-        const publicKey = await importPublicKey(receiverPublicKeyBase64);
-        encryptedText = await encryptText(publicKey, text.trim());
-      }
-
       await sendMessage({
-        text: encryptedText,
+        text: text.trim(),
         image: imagePreview,
       });
 
+      // Clear form
       setText("");
       setImagePreview(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (error) {
-      console.error("Failed to send encrypted message:", error);
-      toast.error("Ошибка отправки сообщения");
+      console.error("Failed to send message:", error);
     }
   };
 
@@ -96,10 +52,15 @@ const MessageInput = ({ selectedUser }) => {
       {imagePreview && (
         <div className="mb-3 flex items-center gap-2">
           <div className="relative">
-            <img src={imagePreview} alt="Preview" className="w-20 h-20 object-cover rounded-lg border border-zinc-700" />
+            <img
+              src={imagePreview}
+              alt="Preview"
+              className="w-20 h-20 object-cover rounded-lg border border-zinc-700"
+            />
             <button
               onClick={removeImage}
-              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-base-300 flex items-center justify-center"
+              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-base-300
+              flex items-center justify-center"
               type="button"
             >
               <X className="size-3" />
@@ -127,7 +88,8 @@ const MessageInput = ({ selectedUser }) => {
 
           <button
             type="button"
-            className={`hidden sm:flex btn btn-circle ${imagePreview ? "text-emerald-500" : "text-zinc-400"}`}
+            className={`hidden sm:flex btn btn-circle
+                     ${imagePreview ? "text-emerald-500" : "text-zinc-400"}`}
             onClick={() => fileInputRef.current?.click()}
           >
             <Image size={20} />
