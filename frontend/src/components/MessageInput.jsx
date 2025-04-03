@@ -28,12 +28,15 @@ const MessageInput = ({ selectedUser }) => {
         localStorage.setItem("publicKey", pub);
         localStorage.setItem("privateKey", priv);
 
-        // Upload public key to server
-        await fetch("/api/users/public-key", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ publicKey: pub }),
-        });
+        try {
+          await fetch("/api/users/public-key", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ publicKey: pub }),
+          });
+        } catch (error) {
+          console.error("Error uploading public key:", error);
+        }
       }
     };
 
@@ -64,10 +67,15 @@ const MessageInput = ({ selectedUser }) => {
     if (!text.trim() && !imagePreview) return;
 
     try {
-      const res = await fetch(`/api/users/${selectedUser._id}/public-key`);
-      const { publicKey: receiverPublicKeyBase64 } = await res.json();
-      const publicKey = await importPublicKey(receiverPublicKeyBase64);
-      const encryptedText = text ? await encryptText(publicKey, text.trim()) : null;
+      let encryptedText = null;
+      if (text.trim()) {
+        const res = await fetch(`/api/users/${selectedUser._id}/public-key`);
+        if (!res.ok) throw new Error("Failed to fetch recipient's public key");
+
+        const { publicKey: receiverPublicKeyBase64 } = await res.json();
+        const publicKey = await importPublicKey(receiverPublicKeyBase64);
+        encryptedText = await encryptText(publicKey, text.trim());
+      }
 
       await sendMessage({
         text: encryptedText,
@@ -79,6 +87,7 @@ const MessageInput = ({ selectedUser }) => {
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (error) {
       console.error("Failed to send encrypted message:", error);
+      toast.error("Ошибка отправки сообщения");
     }
   };
 
