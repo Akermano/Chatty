@@ -85,7 +85,7 @@ const ChatContainer = () => {
         ))}
       </div>
 
-      <MessageInput />
+      <MessageInput selectedUser={selectedUser}/>
     </div>
   );
 };
