@@ -15,20 +15,26 @@ const MessageInput = ({ selectedUser }) => {
   const fileInputRef = useRef(null);
   const { sendMessage } = useChatStore();
 
+  // Upload user's public key if not already uploaded
   useEffect(() => {
     const initKeys = async () => {
       const publicKey = getStoredPublicKey();
       if (!publicKey) {
-        const keyPair = await getOrCreateKeyPair();
-        const exportedPub = await getStoredPublicKey();
         try {
-          await fetch("/api/users/public-key", {
+          const keyPair = await getOrCreateKeyPair();
+          const exportedPub = getStoredPublicKey();
+
+          const res = await fetch("/api/users/public-key", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ publicKey: exportedPub }),
           });
+
+          if (!res.ok) {
+            console.error("Public key upload failed");
+          }
         } catch (err) {
-          console.error("Failed to upload public key:", err);
+          console.error("Failed to generate/upload public key:", err);
         }
       }
     };
@@ -66,8 +72,13 @@ const MessageInput = ({ selectedUser }) => {
         if (!res.ok) throw new Error("Failed to fetch recipient's public key");
 
         const { publicKey: base64Key } = await res.json();
+        if (!base64Key) throw new Error("Recipient has no public key uploaded");
+
         const recipientKey = await importPublicKey(base64Key);
+        if (!recipientKey) throw new Error("Failed to import public key");
+
         encryptedText = await encryptText(recipientKey, text.trim());
+        if (!encryptedText) throw new Error("Encryption failed");
       }
 
       await sendMessage({
@@ -124,7 +135,9 @@ const MessageInput = ({ selectedUser }) => {
 
           <button
             type="button"
-            className={`hidden sm:flex btn btn-circle ${imagePreview ? "text-emerald-500" : "text-zinc-400"}`}
+            className={`hidden sm:flex btn btn-circle ${
+              imagePreview ? "text-emerald-500" : "text-zinc-400"
+            }`}
             onClick={() => fileInputRef.current?.click()}
           >
             <Image size={20} />
