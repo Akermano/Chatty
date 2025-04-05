@@ -8,6 +8,7 @@ import {
   getOrCreateKeyPair,
   getStoredPublicKey,
 } from "../lib/crypto";
+import { axiosInstance } from "../lib/axios";
 
 const MessageInput = ({ selectedUser }) => {
   const [text, setText] = useState("");
@@ -15,7 +16,7 @@ const MessageInput = ({ selectedUser }) => {
   const fileInputRef = useRef(null);
   const { sendMessage } = useChatStore();
 
-  // Upload user's public key if not already uploaded
+  // Upload public key if not present
   useEffect(() => {
     const initKeys = async () => {
       const publicKey = getStoredPublicKey();
@@ -24,17 +25,17 @@ const MessageInput = ({ selectedUser }) => {
           const keyPair = await getOrCreateKeyPair();
           const exportedPub = getStoredPublicKey();
 
-          const res = await fetch("/api/users/public-key", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ publicKey: exportedPub }),
+          const res = await axiosInstance.post("/users/public-key", {
+            publicKey: exportedPub,
           });
 
-          if (!res.ok) {
-            console.error("Public key upload failed");
+          if (res.status === 200) {
+            console.log("✅ Public key uploaded");
+          } else {
+            console.warn("⚠️ Unexpected status uploading public key", res.status);
           }
         } catch (err) {
-          console.error("Failed to generate/upload public key:", err);
+          console.error("❌ Failed to generate/upload public key:", err);
         }
       }
     };
@@ -65,20 +66,25 @@ const MessageInput = ({ selectedUser }) => {
     if (!text.trim() && !imagePreview) return;
 
     try {
+      console.log("Sending to user:", selectedUser._id);
+
+      const res = await axiosInstance.get(`/users/${selectedUser._id}/public-key`);
+      const data = res.data;
+
+      console.log("Fetched public key from backend:", data);
+
+      if (!data.publicKey) throw new Error("Recipient has no public key");
+
+      const recipientKey = await importPublicKey(data.publicKey);
+      console.log("Imported recipient key:", recipientKey);
+
+      const trimmedText = text.trim();
       let encryptedText = null;
 
-      if (text.trim()) {
-        const res = await fetch(`/api/users/${selectedUser._id}/public-key`);
-        if (!res.ok) throw new Error("Failed to fetch recipient's public key");
-
-        const { publicKey: base64Key } = await res.json();
-        if (!base64Key) throw new Error("Recipient has no public key uploaded");
-
-        const recipientKey = await importPublicKey(base64Key);
-        if (!recipientKey) throw new Error("Failed to import public key");
-
-        encryptedText = await encryptText(recipientKey, text.trim());
-        if (!encryptedText) throw new Error("Encryption failed");
+      if (trimmedText) {
+        console.log("Original message:", trimmedText);
+        encryptedText = await encryptText(recipientKey, trimmedText);
+        console.log("Encrypted message:", encryptedText);
       }
 
       await sendMessage({
@@ -86,12 +92,14 @@ const MessageInput = ({ selectedUser }) => {
         image: imagePreview,
       });
 
+      console.log("✅ Message sent successfully");
+
       setText("");
       setImagePreview(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (error) {
-      console.error("Failed to send encrypted message:", error);
-      toast.error("Failed to send message");
+      console.error("❌ Failed to send encrypted message:", error);
+      toast.error("Failed to send message: " + error.message);
     }
   };
 
