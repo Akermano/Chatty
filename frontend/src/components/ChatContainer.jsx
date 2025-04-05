@@ -1,11 +1,12 @@
 import { useChatStore } from "../store/useChatStore";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import ChatHeader from "./ChatHeader";
 import MessageInput from "./MessageInput";
 import MessageSkeleton from "./skeletons/MessageSkeleton";
 import { useAuthStore } from "../store/useAuthStore";
 import { formatMessageTime } from "../lib/utils";
+import { decryptText, importPrivateKey, getStoredPrivateKey } from "../lib/crypto";
 
 const ChatContainer = () => {
   const {
@@ -16,14 +17,25 @@ const ChatContainer = () => {
     subscribeToMessages,
     unsubscribeFromMessages,
   } = useChatStore();
+
   const { authUser } = useAuthStore();
   const messageEndRef = useRef(null);
+  const [privateKey, setPrivateKey] = useState(null);
+
+  useEffect(() => {
+    const loadPrivateKey = async () => {
+      const stored = getStoredPrivateKey();
+      if (stored) {
+        const key = await importPrivateKey(stored);
+        setPrivateKey(key);
+      }
+    };
+    loadPrivateKey();
+  }, []);
 
   useEffect(() => {
     getMessages(selectedUser._id);
-
     subscribeToMessages();
-
     return () => unsubscribeFromMessages();
   }, [selectedUser._id, getMessages, subscribeToMessages, unsubscribeFromMessages]);
 
@@ -32,6 +44,11 @@ const ChatContainer = () => {
       messageEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
+
+  const decryptMessageText = async (text) => {
+    if (!text || !privateKey) return text;
+    return await decryptText(privateKey, text);
+  };
 
   if (isMessagesLoading) {
     return (
@@ -79,14 +96,19 @@ const ChatContainer = () => {
                   className="sm:max-w-[200px] rounded-md mb-2"
                 />
               )}
-              {message.text && <p>{message.text}</p>}
+              {message.text && privateKey ? (
+                <p>{`🔐 ${"[decrypting...]"}`}</p>
+              ) : (
+                <p>{message.text}</p>
+              )}
             </div>
           </div>
         ))}
       </div>
 
-      <MessageInput />
+      <MessageInput selectedUser={selectedUser} />
     </div>
   );
 };
+
 export default ChatContainer;
