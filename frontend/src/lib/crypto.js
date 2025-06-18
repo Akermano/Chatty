@@ -158,3 +158,24 @@ export async function decryptImageData(privateKey, encryptedImage, encryptedKey,
 export function getStoredPublicKey() {
   return localStorage.getItem("publicKey") || null;
 }
+
+export function getOrCreateKeyPair() {
+  const cachedPublic = localStorage.getItem("publicKey");
+  const cachedPrivate = localStorage.getItem("privateKey");
+
+  if (cachedPublic && cachedPrivate) {
+    return {
+      publicKey: importPublicKey(cachedPublic),
+      privateKey: importPrivateKey(cachedPrivate),
+    };
+  }
+
+  const keyPair = generateKeyPair();
+  const pub = exportPublicKey(keyPair.publicKey);
+  const priv = exportPrivateKey(keyPair.privateKey);
+
+  localStorage.setItem("publicKey", pub);
+  localStorage.setItem("privateKey", priv);
+
+  return keyPair;
+}
