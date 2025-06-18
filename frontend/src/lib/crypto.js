@@ -1,3 +1,5 @@
+// RSA KEY UTILITIES
+
 export async function generateKeyPair() {
   const keyPair = await window.crypto.subtle.generateKey(
     {
@@ -44,8 +46,9 @@ export async function importPrivateKey(base64Key) {
   );
 }
 
+// MESSAGE ENCRYPTION
+
 export async function encryptText(publicKey, text) {
-  if (!publicKey || !text) return null;
   const encoded = new TextEncoder().encode(text);
   const encrypted = await crypto.subtle.encrypt(
     { name: "RSA-OAEP" },
@@ -56,7 +59,6 @@ export async function encryptText(publicKey, text) {
 }
 
 export async function decryptText(privateKey, base64Text) {
-  if (!privateKey || !base64Text) return null;
   try {
     const encryptedBytes = Uint8Array.from(atob(base64Text), c => c.charCodeAt(0));
     const decrypted = await crypto.subtle.decrypt(
@@ -65,13 +67,60 @@ export async function decryptText(privateKey, base64Text) {
       encryptedBytes
     );
     return new TextDecoder().decode(decrypted);
-  } catch (error) {
-    console.error("Decryption failed:", error);
-    return "[Decryption error]";
+  } catch (e) {
+    console.error("Decryption failed:", e);
+    return "[decryption error]";
   }
 }
 
-// Load and cache key pair from localStorage
+// AES UTILITIES FOR IMAGE ENCRYPTION
+
+export async function generateAESKey() {
+  return await crypto.subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    true,
+    ["encrypt", "decrypt"]
+  );
+}
+
+export async function encryptImageWithAES(key, imageData) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(imageData);
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    encoded
+  );
+  return {
+    encryptedImage: btoa(String.fromCharCode(...new Uint8Array(encrypted))),
+    iv: btoa(String.fromCharCode(...iv))
+  };
+}
+
+export async function decryptImageWithAES(key, encryptedImage, ivBase64) {
+  const encryptedBytes = Uint8Array.from(atob(encryptedImage), c => c.charCodeAt(0));
+  const iv = Uint8Array.from(atob(ivBase64), c => c.charCodeAt(0));
+  const decrypted = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv },
+    key,
+    encryptedBytes
+  );
+  return new TextDecoder().decode(decrypted);
+}
+
+export async function encryptAESKeyWithRSA(aesKey, rsaPublicKey) {
+  const raw = await crypto.subtle.exportKey("raw", aesKey);
+  return await encryptText(rsaPublicKey, btoa(String.fromCharCode(...new Uint8Array(raw))));
+}
+
+export async function decryptAESKeyWithRSA(encryptedKey, rsaPrivateKey) {
+  const decryptedBase64 = await decryptText(rsaPrivateKey, encryptedKey);
+  const raw = Uint8Array.from(atob(decryptedBase64), c => c.charCodeAt(0));
+  return await crypto.subtle.importKey("raw", raw, "AES-GCM", true, ["decrypt"]);
+}
+
+// LOCAL STORAGE
+
 export async function getOrCreateKeyPair() {
   const cachedPublic = localStorage.getItem("publicKey");
   const cachedPrivate = localStorage.getItem("privateKey");
@@ -84,15 +133,12 @@ export async function getOrCreateKeyPair() {
     const keyPair = await generateKeyPair();
     const pub = await exportPublicKey(keyPair.publicKey);
     const priv = await exportPrivateKey(keyPair.privateKey);
-
     localStorage.setItem("publicKey", pub);
     localStorage.setItem("privateKey", priv);
-
     return keyPair;
   }
 }
 
-// Returns public key only (for uploading to server)
 export function getStoredPublicKey() {
   return localStorage.getItem("publicKey") || null;
 }
