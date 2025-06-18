@@ -48,18 +48,31 @@ const ChatContainer = () => {
     }
   }, [messages]);
 
-  const renderMessage = async (message) => {
-    const decryptedText = message.text ? await decryptText(privateKey, message.text) : null;
-    const decryptedImage =
-      message.image && message.imageKey && message.iv
-        ? await decryptImageData(privateKey, message.image, message.imageKey, message.iv)
-        : null;
+  const renderMessage = (message) => {
+    const isSender = message.senderId === authUser._id;
+
+    const [decryptedText, setDecryptedText] = useState(null);
+    const [decryptedImage, setDecryptedImage] = useState(null);
+
+    useEffect(() => {
+      const decryptAll = async () => {
+        if (privateKey && message.text) {
+          const txt = await decryptText(privateKey, message.text);
+          setDecryptedText(txt);
+        }
+        if (privateKey && message.image && message.imageKey && message.iv) {
+          const img = await decryptImageData(privateKey, message.image, message.imageKey, message.iv);
+          setDecryptedImage(`data:image/jpeg;base64,${img}`);
+        }
+      };
+      decryptAll();
+    }, [privateKey]);
 
     return (
-      <div key={message._id} className={`chat ${message.senderId === authUser._id ? "chat-end" : "chat-start"}`} ref={messageEndRef}>
+      <div key={message._id} className={`chat ${isSender ? "chat-end" : "chat-start"}`} ref={messageEndRef}>
         <div className="chat-image avatar">
           <div className="size-10 rounded-full border">
-            <img src={message.senderId === authUser._id ? authUser.profilePic : selectedUser.profilePic} alt="profile" />
+            <img src={isSender ? authUser.profilePic : selectedUser.profilePic} alt="profile" />
           </div>
         </div>
         <div className="chat-header mb-1">
