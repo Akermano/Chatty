@@ -58,8 +58,14 @@ const MessageInput = ({ selectedUser }) => {
     if (!text.trim() && !rawImageBase64) return;
 
     try {
+      // Debug: Log the data
+      console.log("Raw base64 image:", rawImageBase64);
+      console.log("Text message:", text);
+
       const res = await axiosInstance.get(`/users/${selectedUser._id}/public-key`);
       const recipientKey = await importPublicKey(res.data.publicKey);
+
+      console.log("Recipient public key from server:", res.data.publicKey);
 
       let encryptedText = null;
       if (text.trim()) {
@@ -72,6 +78,7 @@ const MessageInput = ({ selectedUser }) => {
 
       if (rawImageBase64) {
         const enc = await encryptImageData(recipientKey, rawImageBase64);
+        console.log("Encrypted Image Data:", enc); // Debug
         encryptedImage = enc.encryptedImage;
         encryptedKey = enc.encryptedKey;
         iv = enc.iv;
