@@ -1,38 +1,32 @@
 import mongoose from "mongoose";
 
-const MessageSchema = new mongoose.Schema({
-  senderId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    required: true,
+const messageSchema = new mongoose.Schema(
+  {
+    senderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    receiverId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    text: {
+      type: String, // encrypted
+    },
+    image: {
+      type: String, // encrypted base64
+    },
+    imageKey: {
+      type: String, // encrypted AES key
+    },
+    iv: {
+      type: String, // base64 IV
+    },
   },
-  receiverId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
-    required: true,
-  },
-  // Encrypted text message
-  text: {
-    type: String,
-  },
-  // Encrypted base64 image (if any)
-  image: {
-    type: String,
-  },
-  // Encrypted AES key used to encrypt the image
-  imageKey: {
-    type: String,
-  },
-  // Initialization vector used for AES-GCM
-  iv: {
-    type: String,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
+  { timestamps: true }
+);
 
-const Message = mongoose.model("Message", MessageSchema);
-
+const Message = mongoose.model("Message", messageSchema);
 export default Message;
