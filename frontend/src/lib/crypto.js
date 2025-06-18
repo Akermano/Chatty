@@ -72,37 +72,6 @@ export async function decryptText(privateKey, base64Text) {
   }
 }
 
-// 🔐 LOCAL KEY STORAGE
-
-export async function getOrCreateKeyPair() {
-  const cachedPublic = localStorage.getItem("publicKey");
-  const cachedPrivate = localStorage.getItem("privateKey");
-
-  if (cachedPublic && cachedPrivate) {
-    return {
-      publicKey: await importPublicKey(cachedPublic),
-      privateKey: await importPrivateKey(cachedPrivate),
-    };
-  }
-
-  const keyPair = await generateKeyPair();
-  const pub = await exportPublicKey(keyPair.publicKey);
-  const priv = await exportPrivateKey(keyPair.privateKey);
-
-  localStorage.setItem("publicKey", pub);
-  localStorage.setItem("privateKey", priv);
-
-  return keyPair;
-}
-
-export function getStoredPublicKey() {
-  return localStorage.getItem("publicKey") || null;
-}
-
-export function getStoredPrivateKey() {
-  return localStorage.getItem("privateKey") || null;
-}
-
 // 🔐 AES IMAGE ENCRYPTION + RSA KEY WRAPPING
 
 function arrayBufferToBase64(buffer) {
@@ -115,6 +84,10 @@ function arrayBufferToBase64(buffer) {
 }
 
 export async function encryptImageData(publicKey, base64Image) {
+  if (!base64Image || typeof base64Image !== "string") {
+    throw new Error("Invalid base64Image input to encryptImageData");
+  }
+
   const aesKey = await crypto.subtle.generateKey(
     { name: "AES-GCM", length: 256 },
     true,
@@ -137,6 +110,11 @@ export async function encryptImageData(publicKey, base64Image) {
     exportedAesKey
   );
 
+  // Debug: Log the data
+  console.log("Encrypted Image:", arrayBufferToBase64(encryptedImage));
+  console.log("Encrypted AES Key:", arrayBufferToBase64(encryptedAesKey));
+  console.log("IV:", arrayBufferToBase64(iv));
+
   return {
     encryptedImage: arrayBufferToBase64(encryptedImage),
     encryptedKey: arrayBufferToBase64(encryptedAesKey),
@@ -145,28 +123,38 @@ export async function encryptImageData(publicKey, base64Image) {
 }
 
 export async function decryptImageData(privateKey, encryptedImage, encryptedKey, iv) {
-  const aesKeyRaw = await crypto.subtle.decrypt(
-    { name: "RSA-OAEP" },
-    privateKey,
-    Uint8Array.from(atob(encryptedKey), c => c.charCodeAt(0))
-  );
+  try {
+    const aesKeyRaw = await crypto.subtle.decrypt(
+      { name: "RSA-OAEP" },
+      privateKey,
+      Uint8Array.from(atob(encryptedKey), c => c.charCodeAt(0))
+    );
 
-  const aesKey = await crypto.subtle.importKey(
-    "raw",
-    aesKeyRaw,
-    { name: "AES-GCM" },
-    true,
-    ["decrypt"]
-  );
+    const aesKey = await crypto.subtle.importKey(
+      "raw",
+      aesKeyRaw,
+      { name: "AES-GCM" },
+      true,
+      ["decrypt"]
+    );
 
-  const decrypted = await crypto.subtle.decrypt(
-    {
-      name: "AES-GCM",
-      iv: Uint8Array.from(atob(iv), c => c.charCodeAt(0)),
-    },
-    aesKey,
-    Uint8Array.from(atob(encryptedImage), c => c.charCodeAt(0))
-  );
+    const decrypted = await crypto.subtle.decrypt(
+      {
+        name: "AES-GCM",
+        iv: Uint8Array.from(atob(iv), c => c.charCodeAt(0)),
+      },
+      aesKey,
+      Uint8Array.from(atob(encryptedImage), c => c.charCodeAt(0))
+    );
 
-  return new TextDecoder().decode(decrypted);
+    return new TextDecoder().decode(decrypted);
+  } catch (err) {
+    console.error("❌ decryptImageData failed", {
+      encryptedImage,
+      encryptedKey,
+      iv,
+      err,
+    });
+    throw err;
+  }
 }
