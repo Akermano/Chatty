@@ -110,11 +110,6 @@ export async function encryptImageData(publicKey, base64Image) {
     exportedAesKey
   );
 
-  // Debug: Log the data
-  console.log("Encrypted Image:", arrayBufferToBase64(encryptedImage));
-  console.log("Encrypted AES Key:", arrayBufferToBase64(encryptedAesKey));
-  console.log("IV:", arrayBufferToBase64(iv));
-
   return {
     encryptedImage: arrayBufferToBase64(encryptedImage),
     encryptedKey: arrayBufferToBase64(encryptedAesKey),
@@ -157,4 +152,9 @@ export async function decryptImageData(privateKey, encryptedImage, encryptedKey,
     });
     throw err;
   }
+}
+
+// 🔑 Export this function so it works with MessageInput.jsx
+export function getStoredPublicKey() {
+  return localStorage.getItem("publicKey") || null;
 }
