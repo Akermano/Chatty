@@ -14,6 +14,7 @@ import { axiosInstance } from "../lib/axios";
 const MessageInput = ({ selectedUser }) => {
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
+  const [rawImageBase64, setRawImageBase64] = useState(null);
   const fileInputRef = useRef(null);
   const { sendMessage } = useChatStore();
 
@@ -35,37 +36,42 @@ const MessageInput = ({ selectedUser }) => {
       toast.error("Please select an image file");
       return;
     }
+
     const reader = new FileReader();
     reader.onloadend = () => {
-      setImagePreview(reader.result);
+      const dataUrl = reader.result;
+      const base64 = dataUrl.split(",")[1]; // only the base64 part
+      setImagePreview(dataUrl); // for UI
+      setRawImageBase64(base64); // for encryption
     };
     reader.readAsDataURL(file);
   };
 
   const removeImage = () => {
     setImagePreview(null);
+    setRawImageBase64(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!text.trim() && !imagePreview) return;
+    if (!text.trim() && !rawImageBase64) return;
 
     try {
       const res = await axiosInstance.get(`/users/${selectedUser._id}/public-key`);
       const recipientKey = await importPublicKey(res.data.publicKey);
-      const trimmedText = text.trim();
+
       let encryptedText = null;
+      if (text.trim()) {
+        encryptedText = await encryptText(recipientKey, text.trim());
+      }
+
       let encryptedImage = null;
       let encryptedKey = null;
       let iv = null;
 
-      if (trimmedText) {
-        encryptedText = await encryptText(recipientKey, trimmedText);
-      }
-
-      if (imagePreview) {
-        const enc = await encryptImageData(recipientKey, imagePreview);
+      if (rawImageBase64) {
+        const enc = await encryptImageData(recipientKey, rawImageBase64);
         encryptedImage = enc.encryptedImage;
         encryptedKey = enc.encryptedKey;
         iv = enc.iv;
@@ -101,13 +107,19 @@ const MessageInput = ({ selectedUser }) => {
 
       <form onSubmit={handleSendMessage} className="flex items-center gap-2">
         <div className="flex-1 flex gap-2">
-          <input type="text" className="input input-bordered rounded-lg w-full" placeholder="Type a message..." value={text} onChange={(e) => setText(e.target.value)} />
+          <input
+            type="text"
+            className="input input-bordered rounded-lg w-full"
+            placeholder="Type a message..."
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
           <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleImageChange} />
           <button type="button" className="btn btn-circle text-zinc-400" onClick={() => fileInputRef.current?.click()}>
             <Image size={20} />
           </button>
         </div>
-        <button type="submit" className="btn btn-circle" disabled={!text.trim() && !imagePreview}>
+        <button type="submit" className="btn btn-circle" disabled={!text.trim() && !rawImageBase64}>
           <Send size={22} />
         </button>
       </form>
